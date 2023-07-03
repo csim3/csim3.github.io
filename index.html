@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html>
+  <script src="https://d3js.org/d3.v5.min.js"></script>
+  <style>
+    .button {
+      display: inline-block;
+      margin-right: 10px;
+      padding: 10px;
+      background-color: #ccc;
+      cursor: pointer;
+    }
+    .button:hover {
+      transform: scale(1.2);
+    }
+    circle {
+      fill: lightblue;
+      stroke: black;
+    }
+    .label {
+      display: none;
+    }
+    h1 {
+      text-align: center;
+    }
+    h2 {
+      text-align: center;
+    }
+    #buttons {
+      text-align: center;
+    }
+    .container {
+      display: flex;
+    }
+  </style>
+  <body onload="init(yearMin, yearMax)">
+    <h1>Top 150 Movies by IMDB Rating, Segmented by Time Period</h1>
+    <h2 id="yearSelection"></h2>
+    <div id="buttons">
+      <button id="button1" class="button">Before 1980</button>
+      <button id="button2" class="button">1980 - 1999</button>
+      <button id="button3" class="button">2000 - 2009</button>
+      <button id="button4" class="button">2010 - 2020</button>
+    </div>
+    <div class="container">
+      <div id="data1" style="width: 1500px; overflow: auto">
+        <svg id="svg1" width="1000" height="700"></svg>
+      </div>
+      <div id="data2" style="width: 700px; overflow: auto">
+        <div id="popup">
+          <div
+            id="popupContent"
+            style="
+              width: 300px;
+              height: 300px;
+              word-wrap: break-word;
+              display: none;
+              padding: 10px;
+            "
+          ></div>
+          <svg id="svg2" width="300" height="300"></svg>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Define const variables
+      const widthScatter = 700;
+      const heightScatter = 400;
+      const margin = 50;
+      const heightPopup = 125;
+      const widthPopup = 300;
+
+      const moviesToAnnotate = [
+        "The Shawshank Redemption",
+        "The Godfather",
+        "The Dark Knight",
+        "Avengers: Endgame",
+        "The Kid",
+        "Gangs of Wasseypur",
+        "Toy Story",
+        "Sen to Chihiro no kamikakushi",
+      ];
+
+      const button1 = document.querySelector("#button1");
+      const button2 = document.querySelector("#button2");
+      const button3 = document.querySelector("#button3");
+      const button4 = document.querySelector("#button4");
+      const yearSelection = document.getElementById("yearSelection");
+
+      // Define other variables
+      let yearMin = 0;
+      let yearMax = 1979;
+
+      // Event listeners for buttons
+      button1.addEventListener("click", function () {
+        init(0, 1979);
+      });
+      button2.addEventListener("click", function () {
+        init(1980, 1999);
+      });
+      button3.addEventListener("click", function () {
+        init(2000, 2009);
+      });
+      button4.addEventListener("click", function () {
+        init(2010, 2020);
+      });
+
+      // init() function for each scene
+      async function init(yearMinNew, yearMaxNew) {
+        // Change parameter values for min and max year
+        yearMin = yearMinNew;
+        yearMax = yearMaxNew;
+
+        if (yearMin == 0) {
+          yearSelection.textContent = "Selected Years: Before " + (yearMax + 1);
+        } else {
+          yearSelection.textContent =
+            "Selected Years: " + yearMin + " - " + yearMax;
+        }
+        // Clear the existing SVGs and divs
+        d3.select("#svg1").html("");
+        d3.select("#svg2").html("");
+        d3.select("#popupContent").html("");
+
+        const data = await d3.csv("https://csim3.github.io/imdb_top_150.csv");
+
+        const filteredYears = data.filter(function (d) {
+          return +d.Released_Year >= yearMin && +d.Released_Year <= yearMax;
+        });
+
+        let voteValues = filteredYears.map(function (d) {
+          return +d.No_of_Votes;
+        });
+
+        let ratings = filteredYears.map(function (d) {
+          return +d.IMDB_Rating;
+        });
+
+        ratings.sort(function (a, b) {
+          return b - a;
+        });
+
+        let fifthHighestValue = ratings[4];
+        let votesMax = d3.max(voteValues);
+        let ratingsMin = d3.min(ratings);
+        let ratingsMax = d3.max(ratings);
+
+        const xScaleScatter = d3
+          .scaleLinear()
+          .domain([0, votesMax * 1.1])
+          .range([0, widthScatter]);
+
+        const yScaleScatter = d3
+          .scaleLinear()
+          .domain([ratingsMin - 0.1, ratingsMax])
+          .range([heightScatter, 0]);
+
+        const svg = d3.select("#svg1");
+
+        const circleGroup = svg
+          .append("g")
+          .attr("transform", "translate(" + 2 * margin + "," + margin + ")");
+
+        circleGroup
+          .selectAll("circle")
+          .data(filteredYears)
+          .enter()
+          .append("circle")
+          .attr("cx", function (d) {
+            return xScaleScatter(+d.No_of_Votes);
+          })
+          .attr("cy", function (d) {
+            return yScaleScatter(+d.IMDB_Rating);
+          })
+          .attr("r", function (d) {
+            return 5;
+          })
+          .style("fill", function (d) {
+            if (moviesToAnnotate.includes(d.Series_Title)) {
+              return "orange";
+            }
+          })
+          .attr("data-id", function (d) {
+            // Assign unique ID to each point based on movie title
+            return d.Series_Title.replace(/\s+/g, "_");
+          })
+          .on("mouseover", function () {
+            d3.select(this).attr("r", 10);
+            const id = d3.select(this).attr("data-id");
+            d3.select('text[data-id="' + id + '"]').style("display", "block");
+          })
+          .on("mouseout", function (d) {
+            d3.select(this).attr("r", 5);
+            const id = d3.select(this).attr("data-id");
+            // Hide label of point if it's not among top 5 or one of annotated movies
+            if (
+              !(
+                +d.IMDB_Rating >= fifthHighestValue ||
+                moviesToAnnotate.includes(d.Series_Title)
+              )
+            ) {
+              d3.select('text[data-id="' + id + '"]').style("display", "none");
+            }
+          })
+          .on("click", function (d) {
+            d3.select("#popupContent")
+              .style("display", "block")
+              .html(
+                "<strong>Title:</strong> " +
+                  d.Series_Title +
+                  "<br/><br/><strong>Film Overview:</strong> " +
+                  d.Overview +
+                  "<br/><br/><strong>Genres:</strong> " +
+                  d.Genre +
+                  "<br/><strong>Release Year:</strong> " +
+                  d.Released_Year +
+                  "<br/><strong>Runtime:</strong> " +
+                  d.Runtime +
+                  "<br/><br/><strong>Director:</strong> " +
+                  d.Director +
+                  "<br/><strong>Star 1:</strong> " +
+                  d.Star1 +
+                  "<br/><strong>Star 2:</strong> " +
+                  d.Star2 +
+                  "<br/><strong>Star 3:</strong> " +
+                  d.Star3 +
+                  "<br/><strong>Star 4:</strong> " +
+                  d.Star4
+              );
+
+            // Clear the existing popup
+            d3.select("#svg2").html("");
+
+            const popupSvg = d3.select("#svg2");
+            const categories = ["IMDB Rating", "Metascore"];
+            const xScalePopup = d3
+              .scaleBand()
+              .domain(categories)
+              .range([0, widthPopup])
+              .padding(0.6);
+            const yScaleBar = d3
+              .scaleLinear()
+              .domain([0, 100])
+              .range([heightPopup, 0]);
+
+            const barGroup = popupSvg
+              .append("g")
+              .attr("transform", "translate(" + 0 + "," + margin + ")");
+
+            barGroup
+              .selectAll("rect")
+              .data([+d.IMDB_Rating, +d.Meta_score])
+              .enter()
+              .append("rect")
+              .attr("width", margin)
+              .attr("x", function (d, i) {
+                return xScalePopup(categories[i]);
+              })
+              .attr("y", function (d, i) {
+                return i == 0 ? yScaleBar(d * 10) : yScaleBar(d);
+              })
+              .attr("height", function (d, i) {
+                return (
+                  heightPopup - (i == 0 ? yScaleBar(d * 10) : yScaleBar(d))
+                );
+              })
+              .attr("fill", "blue");
+
+            barGroup
+              .selectAll(".bar-label")
+              .data([+d.IMDB_Rating, +d.Meta_score])
+              .enter()
+              .append("text")
+              .attr("class", "bar-label")
+              .attr("x", function (d, i) {
+                return xScalePopup(categories[i]) + margin / 2;
+              })
+              .attr("y", function (d, i) {
+                return i == 0 ? yScaleBar(d * 10) - 5 : yScaleBar(d) - 5;
+              })
+              .text(function (d, i) {
+                if (d == 0) {
+                  return "N/A";
+                } else {
+                  return i == 0 ? d.toFixed(1) : d;
+                }
+              })
+              .attr("text-anchor", "middle")
+              .attr("font-size", "14");
+
+            barGroup
+              .append("g")
+              .attr("transform", "translate(0," + heightPopup + ")")
+              .call(d3.axisBottom(xScalePopup).tickSize(0))
+              .selectAll("text")
+              .style("font-size", "14");
+          });
+
+        // Add y axis to scatterplot
+        circleGroup
+          .append("g")
+          .attr("transform", "translate(0,0)")
+          .call(
+            d3.axisLeft(yScaleScatter).tickFormat(d3.format(".1f")).tickSize(0)
+          )
+          .selectAll("text")
+          .style("font-size", "14px");
+
+        // text label for y axis
+        circleGroup
+          .append("text")
+          .attr("transform", "rotate(-90)")
+          .attr("y", 0 - 1.25 * margin)
+          .attr("x", 0 - heightScatter / 2)
+          .attr("dy", "1em")
+          .style("text-anchor", "middle")
+          .text("IMDB Rating");
+
+        // Add x axis to scatterplot
+        circleGroup
+          .append("g")
+          .attr("transform", "translate(0," + heightScatter + ")")
+          .call(
+            d3.axisBottom(xScaleScatter).tickFormat(function (d) {
+              return d / 1000 + "k";
+            })
+          )
+          .selectAll("text")
+          .style("font-size", "14px");
+
+        // text label for x axis
+        circleGroup
+          .append("text")
+          .attr(
+            "transform",
+            "translate(" +
+              widthScatter / 2 +
+              " ," +
+              (heightScatter + margin) +
+              ")"
+          )
+          .style("text-anchor", "middle")
+          .text("Number of Votes for IMDB Rating");
+
+        const labelGroup = svg
+          .append("g")
+          .attr("transform", "translate(" + 2 * margin + "," + margin + ")");
+
+        labelGroup
+          .selectAll("text")
+          .data(filteredYears)
+          .enter()
+          .append("text")
+          .attr("class", "label")
+          .attr("data-id", function (d) {
+            return d.Series_Title.replace(/\s+/g, "_");
+          })
+          .attr("x", function (d) {
+            return xScaleScatter(+d.No_of_Votes) + 5;
+          })
+          .attr("y", function (d) {
+            const labelY = yScaleScatter(+d.IMDB_Rating) - 5;
+            // Check for label collisions with existing labels
+            const previousLabels = labelGroup.selectAll("text").nodes();
+            const threshold = 12;
+            let newY = labelY;
+
+            for (const previousLabel of previousLabels) {
+              const previousY = +previousLabel.getAttribute("y");
+              if (Math.abs(previousY - labelY) < threshold) {
+                newY = previousY - threshold;
+                break;
+              }
+            }
+            return newY;
+          })
+          .text(function (d) {
+            labelText =
+              d.Series_Title + " (" + (+d.IMDB_Rating).toFixed(1) + ")";
+            return labelText;
+          })
+          .style("display", function (d) {
+            if (
+              +d.IMDB_Rating >= fifthHighestValue ||
+              moviesToAnnotate.includes(d.Series_Title)
+            ) {
+              return "block";
+            } else {
+              return "none";
+            }
+          });
+
+        // Filter data to only include movies to be annotated
+        const annotationData = filteredYears.filter((d) =>
+          moviesToAnnotate.includes(d.Series_Title)
+        );
+
+        const annotations = svg
+          .selectAll(".annotation-group")
+          .data(annotationData)
+          .enter()
+          .append("g")
+          .attr("class", "annotation-group")
+          .attr("transform", function (d) {
+            return (
+              "translate(" +
+              (2 * margin + xScaleScatter(+d.No_of_Votes)) +
+              "," +
+              (margin + yScaleScatter(+d.IMDB_Rating)) +
+              ")"
+            );
+          });
+
+        annotations
+          .append("line")
+          .attr("x1", 0)
+          .attr("y1", 0)
+          .attr("x2", function (d) {
+            if (d.Series_Title == "The Dark Knight") {
+              return -100;
+            } else if (
+              d.Series_Title == "The Kid" ||
+              d.Series_Title == "Gangs of Wasseypur"
+            ) {
+              return 30;
+            } else {
+              return -50;
+            }
+          })
+          .attr("y2", function (d) {
+            if (d.Series_Title == "The Dark Knight") {
+              return 10;
+            } else {
+              return 15;
+            }
+          })
+          .style("stroke", "black");
+
+        annotations
+          .append("text")
+          .attr("x", function (d) {
+            if (d.Series_Title == "The Dark Knight") {
+              return -435;
+            } else if (
+              d.Series_Title == "The Kid" ||
+              d.Series_Title == "Gangs of Wasseypur"
+            ) {
+              return 25;
+            } else if (d.Series_Title == "Sen to Chihiro no kamikakushi") {
+              return -150;
+            } else {
+              return -200;
+            }
+          })
+          .attr("y", function (d) {
+            if (d.Series_Title == "The Dark Knight") {
+              return 15;
+            } else {
+              return 30;
+            }
+          })
+          .text(function (d) {
+            if (+d.IMDB_Rating == 9.3) {
+              return "#1 IMDB RATING ACROSS ALL YEARS";
+            } else if (+d.IMDB_Rating == 9.2) {
+              return "#2 IMDB RATING ACROSS ALL YEARS";
+            } else if (d.Series_Title == "The Dark Knight") {
+              return "#3 (TIED) IMDB RATING ACROSS ALL YEARS";
+            } else if (d.Series_Title == "Avengers: Endgame") {
+              return "#1 GROSSING ACROSS ALL YEARS IN DATASET";
+            } else if (+d.Released_Year == 1921) {
+              return "EARLIEST MOVIE IN DATASET";
+            } else if (d.Runtime == "321 min") {
+              return "LONGEST MOVIE IN DATASET";
+            } else if (d.Series_Title == "Toy Story") {
+              return "HIGHEST METASCORE FROM 1980-1999 IN DATASET";
+            } else if (d.Series_Title == "Sen to Chihiro no kamikakushi") {
+              return "HIGHEST METASCORE FROM 2000-2009 IN DATASET";
+            }
+          });
+      }
+    </script>
+  </body>
+</html>
