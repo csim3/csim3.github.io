@@ -79,6 +79,8 @@
         "Gangs of Wasseypur",
         "Toy Story",
         "Sen to Chihiro no kamikakushi",
+        "Soorarai Pottru",
+        "Hamilton",
       ];
 
       const button1 = document.querySelector("#button1");
@@ -420,7 +422,9 @@
               return -100;
             } else if (
               d.Series_Title == "The Kid" ||
-              d.Series_Title == "Gangs of Wasseypur"
+              d.Series_Title == "Gangs of Wasseypur" ||
+              d.Series_Title == "Soorarai Pottru" ||
+              d.Series_Title == "Hamilton"
             ) {
               return 30;
             } else {
@@ -443,7 +447,9 @@
               return -435;
             } else if (
               d.Series_Title == "The Kid" ||
-              d.Series_Title == "Gangs of Wasseypur"
+              d.Series_Title == "Gangs of Wasseypur" ||
+              d.Series_Title == "Soorarai Pottru" ||
+              d.Series_Title == "Hamilton"
             ) {
               return 25;
             } else if (d.Series_Title == "Sen to Chihiro no kamikakushi") {
@@ -476,6 +482,8 @@
               return "HIGHEST METASCORE FROM 1980-1999 IN DATASET";
             } else if (d.Series_Title == "Sen to Chihiro no kamikakushi") {
               return "HIGHEST METASCORE FROM 2000-2009 IN DATASET";
+            } else if (d.Series_Title == "Hamilton") {
+              return "BOTH FILMS HAVE TOP 5 IMDB RATING FROM 2010-2020 BUT LESS THAN 65K VOTES";
             }
           });
       }
